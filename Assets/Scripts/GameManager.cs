@@ -6,7 +6,6 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    [Header("UI References")]
     public TextMeshProUGUI currentText;
     public TextMeshProUGUI feedbackText;
     public TextMeshProUGUI scoreText;
@@ -14,9 +13,7 @@ public class GameManager : MonoBehaviour
     public GameObject retryButton;
     public GameObject gameCompletePanel;
 
-    [Header("Script Settings")]
     public string[] scriptLines;  // 完整剧本
-    public int maxCharactersPerLine = 50;  // 每行最大字符数，超过自动换行
 
     private int currentLineIndex = 0;  // 当前行索引
     private int currentCharIndex = 0;  // 当前字符索引
@@ -59,8 +56,7 @@ public class GameManager : MonoBehaviour
 
         LoadCurrentLine();
     }
-
-    // 加载当前行并过滤出字母
+    
     private void LoadCurrentLine()
     {
         if (currentLineIndex >= scriptLines.Length)
@@ -71,8 +67,7 @@ public class GameManager : MonoBehaviour
 
         currentLineLetters.Clear();
         currentInputIndex = 0;
-
-        // 过滤出当前行的所有字母
+        
         foreach (char c in scriptLines[currentLineIndex])
         {
             if (char.IsLetter(c))
@@ -83,44 +78,24 @@ public class GameManager : MonoBehaviour
 
         UpdateDisplayText();
     }
-
-    // 更新显示文本，处理自动换行
+    
     private void UpdateDisplayText()
     {
         string originalText = scriptLines[currentLineIndex];
-        string displayText = "";
-        int charCount = 0;
 
-        // 构建带有自动换行的显示文本
-        foreach (char c in originalText)
-        {
-            displayText += c;
-            charCount++;
-
-            // 达到每行最大字符数且不是最后一个字符时添加换行
-            if (charCount >= maxCharactersPerLine && c != originalText[originalText.Length - 1])
-            {
-                displayText += "\n";
-                charCount = 0;
-            }
-        }
-
-        // 构建富文本，已输入正确的字母显示为绿色
         string processedText = "";
         int letterIndex = 0;
 
-        foreach (char c in displayText)
+        foreach (char c in originalText)
         {
             if (char.IsLetter(c))
             {
                 if (letterIndex < currentInputIndex)
                 {
-                    // 已正确输入的字母
                     processedText += $"<color=green>{c}</color>";
                 }
                 else
                 {
-                    // 未输入的字母（浅灰色）
                     processedText += $"<color=#D3D3D3>{c}</color>";
                 }
                 letterIndex++;
@@ -135,13 +110,11 @@ public class GameManager : MonoBehaviour
         currentText.text = processedText;
     }
 
-    // 处理玩家输入
     public void ProcessInput(char inputChar)
     {
         if (!isGameActive || currentInputIndex >= currentLineLetters.Count)
             return;
-
-        // 隐藏所有反馈和按钮
+        
         feedbackText.text = "";
         retryButton.SetActive(false);
 
@@ -166,20 +139,18 @@ public class GameManager : MonoBehaviour
         {
             // 输入错误
             feedbackText.gameObject.SetActive(true);
-            feedbackText.text = "<color=red>输入错误，请重新输入</color>";
+            feedbackText.text = "<color=red>wrong! try again!</color>";
             retryButton.SetActive(true);
         }
     }
-
-    // 当前行完成
+    
     private void OnCurrentLineComplete()
     {
         feedbackText.gameObject.SetActive(true);
-        feedbackText.text = "<color=green>完成！准备下一段</color>";
+        feedbackText.text = "<color=green>finish! prepare for the next line</color>";
         continueButton.SetActive(true);
     }
-
-    // 继续到下一行
+    
     public void ContinueToNextLine()
     {
         if (!isGameActive) return;
@@ -189,8 +160,7 @@ public class GameManager : MonoBehaviour
         feedbackText.text = "";
         LoadCurrentLine();
     }
-
-    // 重置当前行
+    
     public void ResetCurrentLine()
     {
         currentInputIndex = 0;
@@ -198,8 +168,7 @@ public class GameManager : MonoBehaviour
         retryButton.SetActive(false);
         UpdateDisplayText();
     }
-
-    // 游戏完成
+    
     private void GameComplete()
     {
         isGameActive = false;
@@ -207,14 +176,12 @@ public class GameManager : MonoBehaviour
         feedbackText.text = "";
         continueButton.SetActive(false);
     }
-
-    // 重新开始游戏
+    
     public void RestartGame()
     {
         InitializeGame();
     }
-
-    // 更新分数显示
+    
     private void UpdateScoreText()
     {
         scoreText.text = "Score: " + score;

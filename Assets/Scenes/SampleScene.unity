@@ -1062,7 +1062,8 @@ MonoBehaviour:
   retryButton: {fileID: 725236403}
   gameCompletePanel: {fileID: 1899362542}
   scriptLines:
-  - abcdefg hijklmn. op
+  - 'I want to be an actress. But I... I c-c-can''t... I can''t even s-s-say what
+    the p-problem is! It''s useless. '
   - qrst uvw, xyz.
   maxCharactersPerLine: 50
 --- !u!4 &793558785
