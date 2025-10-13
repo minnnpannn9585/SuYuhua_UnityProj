@@ -119,7 +119,7 @@ public class GameManager : MonoBehaviour
                 else
                 {
                     // 重复字母用特殊颜色标记（橙色）
-                    string color = isRepeatLetter ? "#FFA500" : "#D3D3D3";
+                    string color = isRepeatLetter ? "#FFA500" : "#000000";
                     processedText += $"<color={color}>{c}</color>";
                 }
                 letterIndex++;
@@ -127,7 +127,7 @@ public class GameManager : MonoBehaviour
             else
             {
                 // 标点和空格保持浅灰色
-                processedText += $"<color=#D3D3D3>{c}</color>";
+                processedText += $"<color=#000000>{c}</color>";
             }
         }
 
