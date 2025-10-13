@@ -12,10 +12,10 @@ public class InputManager : MonoBehaviour
                 GameManager.Instance.ProcessInput(c);
             }
             // backspace key clears the whole sentence
-            else if (c == '\b')
-            {
-                GameManager.Instance.ResetCurrentLine();
-            }
+            //else if (c == '\b')
+            //{
+            //    GameManager.Instance.ResetCurrentLine();
+            //}
         }
     }
 }
