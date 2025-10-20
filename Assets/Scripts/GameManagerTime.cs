@@ -1,7 +1,8 @@
- using UnityEngine;
+using UnityEngine;
 using TMPro;
 using System.Collections.Generic;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 [System.Serializable]
 public class RepeatPositionTwo
@@ -23,7 +24,7 @@ public class GameManagerTime : MonoBehaviour
     public GameObject retryButton;
     public GameObject gameCompletePanel;
     public Slider repeatProgressBar;  // 重复输入进度条
-    public Slider timeProgressBar;    // 时间流逝进度条（目标速度参考）
+    public Slider timeProgressBar;    // 时间流逝进度条（整句话的进度）
     public Slider typingProgressBar;  // 打字进度条（当前行完成度）
 
     // 游戏配置
@@ -31,6 +32,10 @@ public class GameManagerTime : MonoBehaviour
     public List<RepeatPosition> requiredRepeatPositions;  // 重复位置配置
     public float targetSecondsPerChar = 1.5f;  // 每个字符的目标输入时间（秒）
     public float speedTolerance = 0.4f;  // 速度容忍度（±40%）
+
+    // Failure configuration (可在 Inspector 调整)
+    public bool failOnDeviation = true;                  // 超出致命偏差即失败
+    public float failToleranceMultiplier = 2.0f;         // 超出 speedTolerance * multiplier 则视为致命偏差
 
     // 游戏状态
     private int currentLineIndex = 0;
@@ -43,7 +48,9 @@ public class GameManagerTime : MonoBehaviour
     private int requiredRepeats = 5;
 
     // 速度控制相关
-    private float currentCharTimer;  // 当前字符的计时
+    private float currentCharTimer;      // 当前字符的计时（用于每字符速度检测）
+    private float currentLineTimer;      // 当前整行的计时（用于整句话时间进度条）
+    private float currentLineAllowedTime;// 当前整行允许的总时间 = targetSecondsPerChar * numberOfLetters
     private bool isSpeedValid = true;
 
     private void Awake()
@@ -55,6 +62,18 @@ public class GameManagerTime : MonoBehaviour
         else
         {
             Destroy(gameObject);
+            return;
+        }
+
+        // 确保 retryButton 点击会重置关卡（重载场景）
+        if (retryButton != null)
+        {
+            var btn = retryButton.GetComponent<Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(RetryLevel);
+            }
         }
     }
 
@@ -68,17 +87,37 @@ public class GameManagerTime : MonoBehaviour
         // 仅在游戏激活且未完成当前行时更新计时器
         if (isGameActive && currentInputIndex < currentLineLetters.Count && !isInRepeatMode)
         {
+            // per-character timer (keeps checking each character speed)
             currentCharTimer += Time.deltaTime;
-            
-            // 更新时间流逝进度条（0~1代表目标时间的0%~100%）
-            float timeProgress = Mathf.Clamp01(currentCharTimer / targetSecondsPerChar);
-            timeProgressBar.value = timeProgress;
+            // line-level timer (total elapsed time for the whole line)
+            currentLineTimer += Time.deltaTime;
 
-            // 超过最大容忍时间提示太慢
+            // 更新时间进度条为 "整句话进度"（0~1）
+            if (currentLineAllowedTime > 0f)
+            {
+                float timeProgress = Mathf.Clamp01(currentLineTimer / currentLineAllowedTime);
+                timeProgressBar.value = timeProgress;
+            }
+            else
+            {
+                timeProgressBar.value = 0f;
+            }
+
+            // 超过单字符最大容忍时间提示太慢（保留原有每字符提示）
             if (currentCharTimer > targetSecondsPerChar * (1 + speedTolerance) && isSpeedValid)
             {
                 feedbackText.text = "<color=red>Too slow! Hurry up!</color>";
                 isSpeedValid = false;
+            }
+
+            // 如果启用了致命失败判定：整行耗时超过致命上限则失败
+            if (failOnDeviation && currentLineAllowedTime > 0f)
+            {
+                float maxLineFail = currentLineAllowedTime * (1 + speedTolerance * failToleranceMultiplier);
+                if (currentLineTimer > maxLineFail)
+                {
+                    TriggerGameFail("Line time exceeded maximum allowed (too slow)");
+                }
             }
         }
     }
@@ -93,13 +132,15 @@ public class GameManagerTime : MonoBehaviour
         currentLineLetters.Clear();
         isGameActive = true;
         currentCharTimer = 0;
+        currentLineTimer = 0;
+        currentLineAllowedTime = 0;
         isSpeedValid = true;
 
         // 初始化UI
         UpdateScoreText();
         feedbackText.text = "";
-        continueButton.SetActive(false);
-        retryButton.SetActive(false);
+        SetActiveWithButtonState(continueButton, false);
+        SetActiveWithButtonState(retryButton, false);
         gameCompletePanel.SetActive(false);
         repeatProgressBar.gameObject.SetActive(false);
         timeProgressBar.gameObject.SetActive(true);  // 显示时间进度条
@@ -124,6 +165,7 @@ public class GameManagerTime : MonoBehaviour
         currentRepeatCount = 0;
         isInRepeatMode = false;
         currentCharTimer = 0;
+        currentLineTimer = 0;
         isSpeedValid = true;
 
         // 过滤当前行的字母（仅保留字母并转小写）
@@ -134,6 +176,9 @@ public class GameManagerTime : MonoBehaviour
                 currentLineLetters.Add(char.ToLower(c));
             }
         }
+
+        // 计算整句允许时间（确保不为零）
+        currentLineAllowedTime = Mathf.Max(0.1f, targetSecondsPerChar * Mathf.Max(1, currentLineLetters.Count));
 
         // 重置进度条
         repeatProgressBar.gameObject.SetActive(false);
@@ -154,7 +199,7 @@ public class GameManagerTime : MonoBehaviour
             if (char.IsLetter(c))
             {
                 bool isRepeatLetter = IsRepeatPosition(currentLineIndex, letterIndex);
-                
+
                 if (letterIndex < currentInputIndex)
                 {
                     processedText += $"<color=green>{c}</color>";
@@ -185,7 +230,7 @@ public class GameManagerTime : MonoBehaviour
     private bool IsRepeatPosition(int lineIndex, int letterIndex)
     {
         if (requiredRepeatPositions == null) return false;
-        
+
         foreach (var pos in requiredRepeatPositions)
         {
             if (pos.lineIndex == lineIndex && pos.letterIndex == letterIndex)
@@ -201,9 +246,9 @@ public class GameManagerTime : MonoBehaviour
     {
         if (!isGameActive || currentInputIndex >= currentLineLetters.Count)
             return;
-        
+
         feedbackText.text = "";
-        retryButton.SetActive(false);
+        SetActiveWithButtonState(retryButton, false);
 
         char lowerInput = char.ToLower(inputChar);
         char targetChar = currentLineLetters[currentInputIndex];
@@ -244,30 +289,45 @@ public class GameManagerTime : MonoBehaviour
                 repeatProgressBar.value = 0;
                 repeatProgressBar.gameObject.SetActive(false);
             }
-            
-            // 重置时间计时器
+
+            // 重置每字符计时器，但保留整句计时（整句进度不在错误时重置）
             currentCharTimer = 0;
-            timeProgressBar.value = 0;
             isSpeedValid = true;
 
             feedbackText.text = "<color=red>Wrong! Try again!</color>";
-            retryButton.SetActive(true);
+            SetActiveWithButtonState(retryButton, true);
         }
     }
 
     private void CompleteCharacterInput()
     {
-        // 检查输入速度是否符合要求
+        // 致命偏差判定（如果启用）：如果当前字符时间超出致命范围则直接失败
+        if (failOnDeviation)
+        {
+            float minFail = targetSecondsPerChar * (1 - speedTolerance * failToleranceMultiplier);
+            float maxFail = targetSecondsPerChar * (1 + speedTolerance * failToleranceMultiplier);
+            if (currentCharTimer < minFail)
+            {
+                TriggerGameFail($"Too fast on a character ({currentCharTimer:F2}s) — exceeded fatal deviation");
+                return;
+            }
+            if (currentCharTimer > maxFail)
+            {
+                TriggerGameFail($"Too slow on a character ({currentCharTimer:F2}s) — exceeded fatal deviation");
+                return;
+            }
+        }
+
+        // 检查输入速度是否符合要求（基于每字符计时）
         CheckInputSpeed();
-        
+
         currentInputIndex++;
         score = Mathf.Max(0, score); // 确保分数不为负
         UpdateScoreText();
         UpdateDisplayText();
 
-        // 重置当前字符计时器
+        // 重置当前字符计时器（整句计时不重置）
         currentCharTimer = 0;
-        timeProgressBar.value = 0;
         isSpeedValid = true;
 
         // 检查是否完成当前行
@@ -302,7 +362,7 @@ public class GameManagerTime : MonoBehaviour
     private void OnCurrentLineComplete()
     {
         feedbackText.text = "<color=green>Line complete! Ready for next?</color>";
-        continueButton.SetActive(true);
+        SetActiveWithButtonState(continueButton, true);
         timeProgressBar.gameObject.SetActive(false); // 完成行时隐藏时间进度条
     }
 
@@ -311,7 +371,7 @@ public class GameManagerTime : MonoBehaviour
         if (!isGameActive) return;
 
         currentLineIndex++;
-        continueButton.SetActive(false);
+        SetActiveWithButtonState(continueButton, false);
         feedbackText.text = "";
         timeProgressBar.gameObject.SetActive(true); // 新行显示时间进度条
         LoadCurrentLine();
@@ -323,9 +383,10 @@ public class GameManagerTime : MonoBehaviour
         currentRepeatCount = 0;
         isInRepeatMode = false;
         currentCharTimer = 0;
+        currentLineTimer = 0; // 重置整句计时（因为用户选择重置）
         isSpeedValid = true;
         feedbackText.text = "";
-        retryButton.SetActive(false);
+        SetActiveWithButtonState(retryButton, false);
         repeatProgressBar.gameObject.SetActive(false);
         timeProgressBar.value = 0;
         UpdateDisplayText();
@@ -336,7 +397,7 @@ public class GameManagerTime : MonoBehaviour
         isGameActive = false;
         gameCompletePanel.SetActive(true);
         feedbackText.text = "";
-        continueButton.SetActive(false);
+        SetActiveWithButtonState(continueButton, false);
         timeProgressBar.gameObject.SetActive(false);
         typingProgressBar.gameObject.SetActive(false);
         repeatProgressBar.gameObject.SetActive(false);
@@ -348,8 +409,45 @@ public class GameManagerTime : MonoBehaviour
         InitializeGame();
     }
 
+    /// <summary>
+    /// 重新加载当前场景，作为速度失败后的“重置关卡”实现。
+    /// retryButton 的点击事件在 Awake 中已自动绑定到此方法。
+    /// </summary>
+    public void RetryLevel()
+    {
+        // 可在这里添加短暂的 UI 动画或声音
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
     private void UpdateScoreText()
     {
         scoreText.text = "Score: " + score;
+    }
+
+    // 将按钮 GameObject 的 SetActive 与 Button.interactable 一起处理，避免激活不可交互的按钮导致不可点问题
+    private void SetActiveWithButtonState(GameObject go, bool active)
+    {
+        if (go == null) return;
+        go.SetActive(active);
+        var btn = go.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.interactable = active;
+        }
+    }
+
+    // 触发游戏失败（速度偏离过大）
+    private void TriggerGameFail(string reason)
+    {
+        if (!isGameActive) return;
+
+        isGameActive = false;
+        feedbackText.text = $"<color=red>Game Over: {reason}</color>";
+        SetActiveWithButtonState(retryButton, true);
+        SetActiveWithButtonState(continueButton, false);
+        timeProgressBar.gameObject.SetActive(false);
+        typingProgressBar.gameObject.SetActive(false);
+        repeatProgressBar.gameObject.SetActive(false);
+        Debug.LogWarning("[GameManagerTime] TriggerGameFail: " + reason);
     }
 }
