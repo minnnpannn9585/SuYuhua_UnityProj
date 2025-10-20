@@ -16,6 +16,8 @@ public class GameManagerTime : MonoBehaviour
 {
     public static GameManagerTime Instance;
 
+    public CameraShake cameraShake;
+
     // UI组件
     public TextMeshProUGUI currentText;
     public TextMeshProUGUI feedbackText;
@@ -308,11 +310,13 @@ public class GameManagerTime : MonoBehaviour
             float maxFail = targetSecondsPerChar * (1 + speedTolerance * failToleranceMultiplier);
             if (currentCharTimer < minFail)
             {
+                cameraShake.Shake(0.2f, 0.1f); // 触发相机震动效果
                 TriggerGameFail($"Too fast on a character ({currentCharTimer:F2}s) — exceeded fatal deviation");
                 return;
             }
             if (currentCharTimer > maxFail)
             {
+                cameraShake.Shake(0.2f, 0.1f); // 触发相机震动效果
                 TriggerGameFail($"Too slow on a character ({currentCharTimer:F2}s) — exceeded fatal deviation");
                 return;
             }

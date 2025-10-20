@@ -2,6 +2,7 @@
 using TMPro;
 using System.Collections.Generic;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 // 新增可序列化的自定义类，用于存储重复位置信息
 [System.Serializable]
@@ -255,6 +256,7 @@ public class GameManager : MonoBehaviour
     
     private void GameComplete()
     {
+        SceneManager.LoadScene("Level02");
         isGameActive = false;
         gameCompletePanel.SetActive(true);
         feedbackText.text = "";
